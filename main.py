@@ -15,24 +15,26 @@ back = pygame.image.load('background.png').convert_alpha()
 back1 = pygame.image.load('back.jpg').convert()
 clock = pygame.time.Clock()
 gravity = 0
-dead = False
-ang = 0
 score = 0
+num = 10
+gen = 0
+weights1 = []
+weights2 = []
+parents = []
+parents1 = []
+fitness = []
 
 
 class Bird(pygame.sprite.Sprite):
-    def __init__(self, bird_width, bird_height, y_change, x, y, num):
+    def __init__(self, bird_width, bird_height, y_change, x, y):
         pygame.sprite.Sprite.__init__(self)
-        self.num = num
         self.image = pygame.image.load('bird.png').convert_alpha()
         self.image = pygame.transform.scale(self.image, (bird_width, bird_height))
         self.bird_width = bird_width
         self.bird_height = bird_height
         self.y_change = y_change
         self.x = x
-        self.x = int(self.x)
         self.y = y
-        self.y = int(self.y)
         self.term_velocity = 15
         self.rect1 = self.image.get_rect()
         self.center = self.rect1.center
@@ -44,43 +46,18 @@ class Bird(pygame.sprite.Sprite):
         self.in6 = 0
         self.in7 = 0
         self.inputs = [[0, 0, 0, 0]]
-        self.gen = 1
-        self.curr_bird = 0
         self.fitness_score = 0
-        self.weights2 = []
-        self.new_population = []
-        for i in range(self.num + 1):
-            self.new_population.append(np.random.uniform(low=-1.0, high=1.0, size=(4, 6)))
-        for i in range(self.num + 1):
-            self.weights2.append(np.random.uniform(low=-1.0, high=1.0, size=(6, 2)))
-        self.fitness = []
-        for i in range(self.num):
-            self.fitness.append([])
-        self.parents = []
-        self.parents1 = []
-        self.score1 = 0
-        self.max_score = 0
+        self.ang = 0
+        self.weights1 = np.random.uniform(low=-1.0, high=1.0, size=(4, 6))
+        self.weights2 = np.random.uniform(low=-1.0, high=1.0, size=(6, 1))
+        self.dead = False
 
     def render(self):
         screen.blit(self.rot_sprite, (self.x, self.y))
 
     def check_collision(self, sprite):
-        global dead
-        if self.rect1.colliderect(sprite) and not dead:
-            dead = True
-            self.restart()
-        elif self.y > height - 115 and dead:
-            dead = True
-            self.restart()
-        elif self.y > height - 115 and not dead:
-            dead = True
-            self.restart()
-        elif self.y < -80 and not dead:
-            dead = True
-            self.restart()
-        elif self.y < -80 and dead:
-            dead = True
-            self.restart()
+        if self.rect1.colliderect(sprite) and not self.dead:
+            self.dead = True
 
     def rect(self):
         self.rect1 = self.image.get_rect(x=self.x, y=self.y, width=self.bird_width, height=self.bird_height)
@@ -92,155 +69,162 @@ class Bird(pygame.sprite.Sprite):
 
     def jump(self):
         self.velocity = -7
-        self.rot_center(ang)
+        self.rot_center(self.ang)
 
     def drop(self):
         self.velocity += self.y_change * gravity
         self.y += self.velocity
-        self.rot_center(ang)
+        self.rot_center(self.ang)
         if self.velocity > self.term_velocity:
             self.velocity = 15
-
-    def score(self):
-        self.score1 += 1
-
-    @staticmethod
-    def text_objects(text, font):
-        text_surface = font.render(text, True, (255, 255, 255))
-        return text_surface
-
-    def restart(self):
-        global dead, gravity, ang
-        dead = False
-        if self.curr_bird == self.num:
-            self.gen += 1
-            self.find_parents()
-            self.curr_bird = 0
-            self.fitness = []
-            pipe.my_list = [randint(200, 450)]
-            self.crossover()
-            self.mutate()
-            for i in range(self.num):
-                self.fitness.append([])
-        self.fitness[self.curr_bird] = [self.fitness_score, self.new_population[self.curr_bird], self.weights2[self.curr_bird]]
-        self.fitness_score = 0
-        ang = 0
-        gravity = 0
-        self.velocity = 1
-        self.y = height/2-100
-        self.x = 0
-        pipe.x_pos = width - 20
-        pipe.y_pos = randint(200, 450)
-        pipe.x_change = 3
-        self.curr_bird += 1
-        if self.score1 > self.max_score:
-            self.max_score = self.score1
-        self.score1 = 0
-        game_loop()
 
     def get_data(self):
         self.fitness_score += 1
         self.inputs[0][0] = pipe.x_pos
         self.inputs[0][1] = self.velocity
-        self.inputs[0][2] = math.sqrt(self.x**2+(self.y-pipe.my_list[self.score1])**2)
-        self.inputs[0][3] = math.sqrt(self.x**2+(pipe.my_list[self.score1]-(150/2)-self.y)**2)
+        self.inputs[0][2] = math.sqrt(self.x**2+(self.y-pipe.my_list[score])**2)
+        self.inputs[0][3] = math.sqrt(self.x**2+(pipe.my_list[score]-(150/2)-self.y)**2)
         self.inputs = np.asarray(self.inputs)
 
-    def find_parents(self):
-        largest1 = 0
-        largest2 = 0
-        wlargest1 = 0
-        second1 = 0
-        second2 = 0
-        wsecond1 = 0
-        large = []
-        var = 0
-        for i in self.fitness:
-            large.extend([[i[0], i[1], i[2]]])
-        for x in range(len(large)):
-            if large[x][0] > largest2:
-                largest1 = large[x][1]
-                wlargest1 = large[x][2]
-                largest2 = large[x][0]
-                var = x
-            if large[x][0] > second2 and x != var:
-                second1 = large[x][1]
-                wsecond1 = large[x][2]
-                second2 = large[x][0]
-        self.parents = [np.asarray(largest1), np.asarray(second1)]
-        self.parents1 = [wlargest1, wsecond1]
-
-    def crossover(self):
-        self.new_population = []
-        self.weights2 = []
-        for i in range(self.num+1):
-            if i > self.num:
-                break
-            child = []
-            child2 = []
-            parent1 = self.parents[0]
-            parent2 = self.parents[1]
-            wparent1 = self.parents1[0]
-            wparent2 = self.parents1[1]
-            x1 = randint(0, len(parent1))
-            for x in range(len(parent1)):
-                child.append(0)
-            for x in range(0, x1):
-                child[x] = parent1[x]
-            for x in range(x1, len(parent1)):
-                child[x] = parent2[x]
-            x2 = randint(0, len(wparent1))
-            for x in range(len(wparent1)):
-                child2.append(0)
-            for x in range(0, x2):
-                child2[x] = wparent1[x]
-            for x in range(x2, len(wparent1)):
-                child2[x] = wparent2[x]
-            self.new_population.append(np.asarray(child))
-            self.weights2.append(child2)
-
-    def mutate(self):
-        mutation_rate = .65
-        for swapped in range(self.num):
-            individual = randint(0, self.num)
-            if random() > mutation_rate:
-                gene1 = np.random.uniform(low=-1.0, high=1.0, size=(6, ))
-                x1 = randint(0, len(self.new_population[0])-1)
-                self.new_population[individual][x1] = gene1
-                gene2 = np.random.uniform(low=-1.0, high=1.0, size=(2, ))
-                x2 = randint(0, len(self.weights2[0])-1)
-                self.weights2[individual][x2] = gene2
-
     def ff(self):
-        l1 = np.tanh(np.dot(np.asarray(self.inputs), self.new_population[self.curr_bird]))
-        l2 = np.tanh(np.dot(l1[0], self.weights2[self.curr_bird]))
-        if l2[0] > l2[1] and not dead:
+        l1 = np.tanh(np.dot(self.inputs, self.weights1))
+        l2 = np.tanh(np.dot(l1, self.weights2))
+        if l2[0] > 0.5 and not self.dead:
             global gravity
             gravity = 0
             self.jump()
 
-    def score_display(self, x_pos, y_pos):
-        large_text = pygame.font.Font('font.TTF', 50)
-        text_surf = self.text_objects(str(self.score1), large_text)
-        screen.blit(text_surf, (x_pos, y_pos))
 
-    def gen_display(self, x_pos, y_pos):
-        large_text = pygame.font.Font('font.TTF', 50)
-        text_surf = self.text_objects('Gen: ' + str(self.gen), large_text)
-        screen.blit(text_surf, (x_pos, y_pos))
-
-    def curr_display(self, x_pos, y_pos):
-        large_text = pygame.font.Font('font.TTF', 50)
-        text_surf = self.text_objects('Bird: ' + str(self.curr_bird), large_text)
-        screen.blit(text_surf, (x_pos, y_pos))
-
-    def highscore(self, x_pos, y_pos):
-        large_text = pygame.font.Font('font.TTF', 50)
-        text_surf = self.text_objects('HS: ' + str(self.max_score), large_text)
-        screen.blit(text_surf, (int(x_pos), int(y_pos)))
+def text_objects(text, font):
+    text_surface = font.render(text, True, (255, 255, 255))
+    return text_surface
 
 
-bird = Bird(40, 30, 5, 0, height/2-100, 15)
+def score_display(x_pos, y_pos):
+    large_text = pygame.font.Font('font.TTF', 50)
+    text_surf = text_objects(str(score), large_text)
+    screen.blit(text_surf, (x_pos, y_pos))
+
+
+def gen_display(x_pos, y_pos):
+    large_text = pygame.font.Font('font.TTF', 50)
+    text_surf = text_objects('Gen: %s' % str(gen), large_text)
+    screen.blit(text_surf, (x_pos, y_pos))
+
+
+def alive_display(x_pos, y_pos, alive):
+    large_text = pygame.font.Font('font.TTF', 50)
+    text_surf = text_objects('Alive: %s' % str(alive), large_text)
+    screen.blit(text_surf, (x_pos, y_pos))
+
+
+def find_parents():
+    global parents, parents1
+    largest1 = 0
+    largest2 = 0
+    wlargest1 = 0
+    second1 = 0
+    second2 = 0
+    wsecond1 = 0
+    large = []
+    var = 0
+    for i in fitness:
+        large.append([i[0], i[1], i[2]])
+    for x in range(len(large)):
+        if large[x][0] > largest2:
+            largest1 = large[x][1]
+            wlargest1 = large[x][2]
+            largest2 = large[x][0]
+            var = x
+        if large[x][0] > second2 and x != var:
+            second1 = large[x][1]
+            wsecond1 = large[x][2]
+            second2 = large[x][0]
+    parents = [largest1, second1]
+    parents1 = [wlargest1, wsecond1]
+
+
+def crossover():
+    points = []
+    for iiii in bird:
+        weights1.append(iiii.weights1)
+        weights2.append(iiii.weights2)
+    for iiii in range(num+1):
+        if iiii > num:
+            break
+        child = [[], []]
+        parent1 = parents[0]
+        parent2 = parents[1]
+        wparent1 = parents1[0]
+        wparent2 = parents1[1]
+        while True:
+            x1 = randint(0, len(parent1))
+            x2 = randint(0, len(wparent1))
+            if [x1, x2] in points:
+                continue
+            else:
+                points.append([x1, x2])
+                break
+        for x in range(len(parent1)):
+            child[0].append(0)
+        for x in range(0, points[len(points)-1][0]):
+            child[0][x] = parent1[x]
+        for x in range(points[len(points)-1][0], len(parent1)):
+            child[0][x] = parent2[x]
+        for x in range(len(wparent1)):
+            child[1].append(0)
+        for x in range(0, points[len(points)-1][1]):
+            child[1] = wparent1[x]
+        for x in range(points[len(points)-1][1], len(wparent1)):
+            child[1] = wparent2[x]
+        weights1.append(child[0])
+        weights2.append(child[1])
+
+
+def mutate():
+    mutation_rate = .65
+    for swapped in range(num):
+        individual = randint(0, num)
+        if random() > mutation_rate:
+            gene1 = np.random.uniform(low=-1.0, high=1.0, size=(6, ))
+            x1 = randint(0, len([weights1][0][0])-1)
+            weights1[individual][x1] = gene1
+            gene2 = np.random.uniform(low=-1.0, high=1.0, size=(1, ))
+            while True:
+                try:
+                    x2 = randint(0, len([weights2][0][0]))
+                    weights2[individual][x2] = gene2
+                    break
+                except IndexError:
+                    continue
+
+
+def restart():
+    global gravity, score, fitness, gen
+    gen += 1
+    find_parents()
+    crossover()
+    mutate()
+    fitness = []
+    gravity = 0
+    for iiiii in bird:
+        iiiii.velocity = 1
+        iiiii.y = height/2-100
+        iiiii.x = 0
+        iiiii.ang = 0
+        iiiii.fitness_score = 0
+        iiiii.dead = False
+    pipe.my_list = [randint(200, 450)]
+    pipe.x_pos = width - 20
+    pipe.y_pos = randint(200, 450)
+    pipe.x_change = 3
+    score = 0
+    game_loop()
+
+
+bird = []
+for iii in range(num):
+    bird.append(Bird(40, 30, 5, 0, height/2-100))
 
 
 class Pipe(pygame.sprite.Sprite):
@@ -255,15 +239,15 @@ class Pipe(pygame.sprite.Sprite):
         self.image2 = pygame.image.load('pipe1.png')
         self.image2 = pygame.transform.scale(self.image2, (28 * 2, 600 * 2)).convert_alpha()
         self.rect1 = self.image1.get_rect()
-        self.rect2 = self.image2.get_rect(center=(self.x_pos, self.my_list[bird.score1]))
+        self.rect2 = self.image2.get_rect(center=(self.x_pos, self.my_list[score]))
 
     def render(self):
-        screen.blit(self.image1, (self.x_pos, self.my_list[bird.score1] - (600 * 2 + 150)))
-        screen.blit(self.image2, (self.x_pos, self.my_list[bird.score1]))
+        screen.blit(self.image1, (self.x_pos, self.my_list[score] - (600 * 2 + 150)))
+        screen.blit(self.image2, (self.x_pos, self.my_list[score]))
 
     def rect(self):
-        self.rect1 = self.image1.get_rect(x=self.x_pos, y=self.my_list[bird.score1] - 150 - 600, width=(26 * 2) + 6, height=600)
-        self.rect2 = self.image2.get_rect(x=self.x_pos, y=self.my_list[bird.score1], width=(26 * 2) + 7, height=height)
+        self.rect1 = self.image1.get_rect(x=self.x_pos, y=self.my_list[score] - 150 - 600, width=(26 * 2) + 6, height=600)
+        self.rect2 = self.image2.get_rect(x=self.x_pos, y=self.my_list[score], width=(26 * 2) + 7, height=height)
 
     def move(self):
         self.x_pos -= self.x_change
@@ -273,44 +257,56 @@ pipe = Pipe(3, width, randint(200, 450))
 
 
 def game_loop():
+    global score
     while True:
         screen.blit(back1, (0, 0))
-        bird.drop()
-        pipe.render()
-        pipe.move()
-        pipe.rect()
-        bird.rect()
-        bird.render()
-        bird.check_collision(pipe.rect1)
-        bird.check_collision(pipe.rect2)
-        screen.blit(back, (0, 0))
-        bird.get_data()
-        bird.ff()
-        bird.score_display(int(width/2), 0)
-        bird.gen_display(0, int(height - 60))
-        bird.curr_display(0, 0)
-        bird.highscore(width-200, height-60)
+        status = []
+        for iiii in bird:
+            status.append(iiii.dead)
+            if iiii.y > height - 115 and not iiii.dead:
+                iiii.dead = True
+            elif iiii.y < -80 and not iiii.dead:
+                iiii.dead = True
+            if not iiii.dead:
+                iiii.drop()
+                iiii.render()
+                iiii.rect()
+                iiii.check_collision(pipe.rect1)
+                iiii.check_collision(pipe.rect2)
+                iiii.get_data()
+                iiii.ff()
+                fitness.append([iiii.fitness_score, iiii.weights1, iiii.weights2])
+        alive = status.count(False)
+        if status[0] and alive == 0:
+            restart()
         if pipe.x_pos < -26:
             pipe.x_pos = width
             pipe.y_pos = randint(200, 450)
-            bird.passed = False
-            bird.score()
-            if bird.score1 > len(pipe.my_list) - 1:
+            score += 1
+            if score > len(pipe.my_list) - 1:
                 pipe.my_list.append(randint(200, 450))
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 quit()
-        global gravity, ang
+        global gravity
         gravity += 0.01
-        if bird.velocity > 0:
-            ang -= 5
-        elif bird.velocity < 0:
-            ang += 5
-        if ang > 90:
-            ang = 90
-        elif ang < -90:
-            ang = -90
+        for iiii in bird:
+            if iiii.velocity > 0:
+                iiii.ang -= 5
+            elif iiii.velocity < 0:
+                iiii.ang += 5
+            if iiii.ang > 90:
+                iiii.ang = 90
+            elif iiii.ang < -90:
+                iiii.ang = -90
+        pipe.render()
+        screen.blit(back, (0, 0))
+        pipe.rect()
+        pipe.move()
+        score_display(width / 2, 0)
+        gen_display(0, 0)
+        alive_display(0, 690, alive)
         clock.tick(60)
         pygame.display.flip()
 

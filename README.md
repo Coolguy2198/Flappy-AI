@@ -1,2 +1,2 @@
 # Flappy-AI
-A Flappy Bird Artifical Intelligence Trained by a Genetic Algorithm
+A Flappy Bird Artifical Intelligence Using Neuroevolution of Augmenting Topologies
